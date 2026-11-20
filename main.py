@@ -1,4 +1,8 @@
 import customtkinter as ctk
+from tkinter import messagebox
+from database import create_tables, get_products
+
+create_tables()
 
 app = ctk.CTk()
 
@@ -21,6 +25,7 @@ main_content.pack(side="right", fill="both", expand=True)
 
 dashboard_page = ctk.CTkFrame(main_content)
 pos_page = ctk.CTkFrame(main_content)
+inventory_page = ctk.CTkFrame(main_content)
 
 
 #------DASHBOARD------(Starts here)
@@ -221,6 +226,20 @@ apply_discount_btn = ctk.CTkButton(
 )
 apply_discount_btn.pack(pady=5)
 
+subtotal_label = ctk.CTkLabel(
+    cart_frame,
+    text="Subtotal: $0.00"
+)
+subtotal_label.pack(pady=2)
+
+discount_label = ctk.CTkLabel(
+    cart_frame,
+    text="Discount: $0.00"
+)
+discount_label.pack(pady=2)
+
+
+
 cart_total = ctk.CTkLabel(
     cart_frame, 
     text="Total: $0.00", 
@@ -228,11 +247,30 @@ cart_total = ctk.CTkLabel(
 )
 cart_total.pack(pady=20)
 
+
+def checkout():
+    if not cart:
+        print("Cart is empty!")
+        return
+
+    total = calculate_total()
+
+    if total <= 0:
+        print("Invalid checkout total!")
+        return
+
+    messagebox.showinfo(
+        "Checkout Successful", 
+        f"Total Amount: ${total:.2f}\n\nThankyou for your purchase!"
+    )
+
+
 checkout_btn = ctk.CTkButton(
     cart_frame, 
     text="Checkout", 
     height=40, 
-    font=ctk.CTkFont(size=15, weight="bold")
+    font=ctk.CTkFont(size=15, weight="bold"),
+    command=checkout
 )
 checkout_btn.pack(fill="x", padx=15, pady=20)
 
@@ -260,21 +298,47 @@ clear_cart_btn = ctk.CTkButton(
 )
 clear_cart_btn.pack(fill="x", padx=15, pady=10)
 
-cart_items_frame = ctk.CTkFrame(cart_frame)
-cart_items_frame.pack(
-    fill="both", 
-    expand=True, 
-    padx=10, 
-    pady=10
+cart_items_frame = ctk.CTkScrollableFrame(
+    cart_frame,
+    width=300,
+    height=250
+)
+cart_items_frame.pack(fill="both", expand=True, padx=5, pady=5)
+
+#---WORKAORUND_FOR_TOUCHPAD_SCROLLING-->--(Mouse wheel works but not a touchpad scrolling)
+def decode_touchpad_delta(raw_delta):
+    raw = raw_delta & 0xFFFFFFFF
+
+    delta_y = raw & 0xFFFF
+
+    if delta_y >= 0x8000:
+        delta_y -= 0x10000
+
+    return delta_y
+
+
+def trackpad_scroll(event):
+    delta_y = decode_touchpad_delta(event.delta)
+
+    if delta_y:
+        cart_items_frame._parent_canvas.yview_scroll(
+            -delta_y,
+            "units"
+        )
+
+    return "break"
+
+app.bind_all(
+    "<TouchpadScroll>",
+    trackpad_scroll,
+    add="+"
 )
 
 #-----CART_FUNCTION------
 cart = {}
 discount_percentage = 0
 product_prices = {
-    "Milk": 3.00,
-    "Bread": 2.50,
-    "Eggs": 4.00
+    name: price for product_id, name, price, stock in get_products()
 }
 
 def add_to_cart(product):
@@ -285,20 +349,26 @@ def add_to_cart(product):
 
     update_cart()
 
-def calculate_total():
-    total = 0 
+def calculate_subtotal():
+    total = 0
+
     for product, quantity in cart.items():
-        amount = quantity * product_prices[product]
-        total += amount
-        try:
-            discount_percentage = float(discount_entry.get() or 0)
-        except ValueError:
-            discount_percentage = 0
-        if discount_percentage < 0 or discount_percentage > 100:
-            discount_percentage = 0
-        discount = total * (discount_percentage / 100)
-        total -= discount
+        total += quantity * product_prices[product]
+
     return total
+
+def calculate_discount():
+    try:
+        percentage = float(discount_entry.get() or 0)
+    except ValueError:
+        percentage = 0
+
+    percentage = max(0, min(percentage, 100))
+
+    return calculate_subtotal() * (percentage/100)
+
+def calculate_total():
+    return calculate_subtotal() - calculate_discount()
 
 def update_cart():
     for widget in cart_items_frame.winfo_children():
@@ -330,41 +400,36 @@ def update_cart():
             command=lambda p=product: add_to_cart(p)
         )
         add_btn.pack(side="right", padx=5, pady=5)
-    cart_total.configure(text=f"Total: ${calculate_total():.2f}")
 
+    subtotal_label.configure(
+        text=f"Subtotal: ${calculate_subtotal():.2f}"
+    )
+    discount_label.configure(
+    text=f"Discount: -${calculate_discount():.2f}"
+    )
+    cart_total.configure(
+        text=f"Total: ${calculate_total():.2f}"
+    )
 
-#-----Products-----(starts here) 
-milk_btn = ctk.CTkButton(
-    product_frame, 
-    text="Milk - $3.00", 
-    width=150, 
-    height=50, 
-    command=lambda: add_to_cart("Milk")
-)
-milk_btn.pack(pady=5)
+#-----Products-----
+for product, price in product_prices.items():
 
-bread_btn = ctk.CTkButton(
-    product_frame, 
-    text="Bread - $2.50", 
-    width=150, 
-    height=50, 
-    command=lambda: add_to_cart("Bread")
-)
-bread_btn.pack(pady=5)
-
-eggs_btn = ctk.CTkButton(
-    product_frame, 
-    text="Eggs - $4.00",
-    width=150,
-    height=50, 
-    command=lambda: add_to_cart("Eggs")
-)
-eggs_btn.pack(pady=5)
+    product_btn = ctk.CTkButton(
+        product_frame,
+        text=f"{product} - ${price:.2f}",
+        width=150,
+        height=50,
+        command=lambda p=product: add_to_cart(p)
+    )
+    product_btn.pack(pady=5)
 
 
 #------Products------(Ends here)
 
 #------POS----(Ends here)
+
+
+
 
 #------SIDEBAR_HEADIING------
 heading = ctk.CTkLabel(
@@ -393,7 +458,8 @@ pos.pack(pady=15)
 
 inventory = ctk.CTkButton(
     sidebar, 
-    text="Inventory"
+    text="Inventory",
+    command=lambda: show_page(inventory_page)
 )
 inventory.pack(pady=15)
 
@@ -404,7 +470,39 @@ sales = ctk.CTkButton(
 sales.pack(pady=15)
 
 
+#-------INVENTORY_PAGE------(Starts here)
 
+inventory_title = ctk.CTkLabel(
+    inventory_page,
+    text="Inventory Management",
+    font=ctk.CTkFont(size=26, weight="bold")
+)
+inventory_title.pack(pady=30)
+
+product_name_entry = ctk.CTkEntry(
+    inventory_page,
+    placeholder_text="Product Name",
+    width=250
+)
+product_name_entry.pack(pady=10)
+
+product_price_entry = ctk.CTkEntry(
+    inventory_page,
+    placeholder_text="Product Price",
+    width=250
+)
+product_price_entry.pack(pady=10)
+
+product_stock_entry = ctk.CTkEntry(
+    inventory_page,
+    placeholder_text="Product Stock",
+    width=250
+)
+product_stock_entry.pack(pady=10)
+
+
+
+#-------INVENTORY_PAGE------(Endss here)
 
 # FUNCTION TO HIDE ALL EXISTING WIDGETS AND DISPLAY THE SELECTED ONE.
 def show_page(page):
