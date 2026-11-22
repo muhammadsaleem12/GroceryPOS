@@ -1,6 +1,6 @@
 import customtkinter as ctk
 from tkinter import messagebox
-from database import create_tables, get_products
+from database import create_tables, get_products, add_product, delete_product
 
 create_tables()
 
@@ -185,22 +185,21 @@ product_search = ctk.CTkEntry(
 )
 product_search.pack(padx=20, pady=20, fill="x")
 
-product_frame = ctk.CTkFrame(pos_page)
+product_frame = ctk.CTkScrollableFrame(pos_page)
 product_frame.pack(
     side="left", 
     fill="both", 
     expand=True, 
-    padx=20, 
+    padx=10, 
     pady=10
 )
-product_frame.pack_propagate(False)
 
 cart_frame = ctk.CTkFrame(pos_page, width=280)
 cart_frame.pack(
-    side="right", 
-    fill="both", 
-    expand=True,
-    padx=20,
+    side="right",
+    fill="both",
+    expand=False,
+    padx=10,
     pady=10
 )
 cart_frame.pack_propagate(False)
@@ -411,20 +410,35 @@ def update_cart():
         text=f"Total: ${calculate_total():.2f}"
     )
 
-#-----Products-----
-for product, price in product_prices.items():
+#-----Load-Products-----
+def load_products():
 
-    product_btn = ctk.CTkButton(
-        product_frame,
-        text=f"{product} - ${price:.2f}",
-        width=150,
-        height=50,
-        command=lambda p=product: add_to_cart(p)
+    # Remove the old product buttons
+    for widget in product_frame.winfo_children():
+        widget.destroy()
+
+    # Reload products from database
+    product_prices.clear()
+    product_prices.update({
+        name: price for product_id, name, price, stock in get_products()
+    }) 
+
+    # Create product buttons
+    for product, price in product_prices.items():
+
+        product_btn = ctk.CTkButton(
+            product_frame,
+            text=f"{product} - ${price:.2f}",
+            width=150,
+            height=50,
+            command=lambda p=product: add_to_cart(p)
+        )
+        product_btn.pack(pady=5)
+
+    total_products_value.configure(
+        text=str(len(product_prices))
     )
-    product_btn.pack(pady=5)
 
-
-#------Products------(Ends here)
 
 #------POS----(Ends here)
 
@@ -479,26 +493,131 @@ inventory_title = ctk.CTkLabel(
 )
 inventory_title.pack(pady=30)
 
-product_name_entry = ctk.CTkEntry(
+inventory_content = ctk.CTkFrame(
     inventory_page,
+    fg_color="transparent"
+)
+inventory_content.pack(fill="both", expand=True, padx=20, pady=10)
+
+inventory_left = ctk.CTkFrame(
+    inventory_content,
+    width=280
+)
+inventory_left.pack(side="left", fill="y", padx=10, pady=10)
+
+inventory_right = ctk.CTkFrame(
+    inventory_content
+)
+inventory_right.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+
+#-----INVENTORY-PRODUCTS-SECTION-----
+
+products_heading = ctk.CTkLabel(
+    inventory_right,
+    text="Products",
+    font=ctk.CTkFont(size=22, weight="bold")
+)
+products_heading.pack(anchor="w", padx=15, pady=15)
+
+products_list_frame = ctk.CTkScrollableFrame(
+    inventory_right,
+    fg_color="transparent",
+)   
+products_list_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+
+
+inventory_summary = ctk.CTkFrame(
+    inventory_left,
+    width=250,
+    height=100,
+    corner_radius=12
+)
+inventory_summary.pack(anchor="w", padx=30, pady=10)
+inventory_summary.pack_propagate(False)
+
+total_products_label = ctk.CTkLabel(
+    inventory_summary,
+    text="Total Products",
+    font=ctk.CTkFont(size=14, weight="bold")
+)
+total_products_label.pack(pady=(15, 5))
+
+total_products_value = ctk.CTkLabel(
+    inventory_summary,
+    text="0",
+    font=ctk.CTkFont(size=24, weight="bold")
+)
+total_products_value.pack()
+
+
+
+product_name_entry = ctk.CTkEntry(
+    inventory_left,
     placeholder_text="Product Name",
     width=250
 )
 product_name_entry.pack(pady=10)
 
 product_price_entry = ctk.CTkEntry(
-    inventory_page,
+    inventory_left,
     placeholder_text="Product Price",
     width=250
 )
 product_price_entry.pack(pady=10)
 
 product_stock_entry = ctk.CTkEntry(
-    inventory_page,
+    inventory_left,
     placeholder_text="Product Stock",
     width=250
 )
 product_stock_entry.pack(pady=10)
+
+def save_product():
+    name = product_name_entry.get().strip()
+    price = product_price_entry.get()
+    stock = product_stock_entry.get()
+
+    if not name or not price or not stock:
+        messagebox.showerror("Error", "Please fill in all fields!")
+        return
+
+    try:
+        price = float(price)
+        stock = int(stock)
+
+        if price <= 0 or stock < 0:
+            raise ValueError
+
+    except ValueError:
+        messagebox.showerror(
+            "Invalid Input",
+            "Enter a valid price and stock quantity!"
+        )
+        return
+
+    add_product(name, price, stock)
+    
+    load_products()
+    load_inventory()
+
+    messagebox.showinfo(
+    "Product Added",
+    f"{name} added successfully!"
+    )
+
+    product_name_entry.delete(0, "end")
+    product_price_entry.delete(0, "end")
+    product_stock_entry.delete(0, "end")
+
+add_product_btn = ctk.CTkButton(
+    inventory_left,
+    text="Add Product", 
+    width=200,
+    height=40,
+    command=save_product
+)
+add_product_btn.pack(pady=20)
 
 
 
@@ -516,6 +635,81 @@ def show_page(page):
 
 
 
+
+load_products()
+
+def load_inventory():
+    for widget in products_list_frame.winfo_children():
+        widget.destroy()
+
+
+    products = get_products()
+
+    for product_id, name, price, stock in products:
+
+        product_row = ctk.CTkFrame(
+            products_list_frame,
+            corner_radius=10
+        )
+        product_row.pack(fill="x", padx=8, pady=6)
+
+        product_name = ctk.CTkLabel(
+            product_row,
+            text=name,
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        product_name.pack(anchor="w", padx=15, pady=(10, 2))
+
+        details_frame = ctk.CTkFrame(
+            product_row,
+            fg_color="transparent"
+        )
+        details_frame.pack(fill="x", padx=15, pady=(2, 10))
+
+        price_label = ctk.CTkLabel(
+            details_frame,
+            text=f"${price:.2f}",
+            font=ctk.CTkFont(size=13)
+        )
+        price_label.pack(side="left")
+
+        stock_label = ctk.CTkLabel(
+            details_frame,
+            text=f"Stock: {stock}",
+            font=ctk.CTkFont(size=13)
+        )
+        delete_btn = ctk.CTkButton(
+            details_frame,
+            text="Delete",
+            width=70,
+            height=28,
+            fg_color="#D9534F",
+            hover_color="#B52B27",
+            command=lambda pid=product_id, pname=name: delete_inventory_product(pid, pname)
+        )
+        delete_btn.pack(side="right", padx=5)
+        stock_label.pack(side="right")
+
+load_inventory()
+
+
+def delete_inventory_product(product_id, name):
+
+    confirm = messagebox.askyesno(
+        "Confirm Deletion",
+        f"Are you sure you want to delete {name}?"
+    )
+
+    if not confirm:
+        return
+
+    delete_product(product_id)
+
+    cart.pop(name, None)
+
+    load_products()
+    load_inventory()
+    update_cart()
 
 
 
