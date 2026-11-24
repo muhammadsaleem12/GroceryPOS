@@ -5,8 +5,10 @@ from database import get_products, add_product, delete_product
 
 class InventoryPage(ctk.CTkFrame):
 
-    def __init__(self, master):
+    def __init__(self, master, on_products_changed=None):
         super().__init__(master)
+
+        self.on_products_changed = on_products_changed
 
         # Inventory heading
         inventory_title = ctk.CTkLabel(
@@ -148,6 +150,9 @@ class InventoryPage(ctk.CTkFrame):
 
         add_product(name, price, stock)
 
+        if self.on_products_changed:
+            self.on_products_changed()
+
         self.load_inventory()
 
         messagebox.showinfo(
@@ -239,6 +244,9 @@ class InventoryPage(ctk.CTkFrame):
             return
 
         delete_product(product_id)
+
+        if self.on_products_changed:
+            self.on_products_changed()
 
         self.load_inventory()
 
