@@ -9,7 +9,7 @@ class POSPage(ctk.CTkFrame):
     def __init__(self, master):
         super().__init__(master)
         self.cart = {}
-        self.product_prices = {}
+        self.products = {}
         self.product_buttons = []
 
         # POS heading
@@ -216,38 +216,57 @@ class POSPage(ctk.CTkFrame):
         for widget in self.product_frame.winfo_children():
             widget.destroy()
 
-        # Reload products from database
-        self.product_prices.clear()
-        self.product_prices.update({
-            name: price for product_id, name, price, stock in get_products()
-        })
+        # Load complete product information from database
+        self.products.clear()
 
-        # Create fixed-size product buttons
+        for product_id, name, price, stock in get_products():
+
+            self.products[product_id] = {
+                "name": name,
+                "price": price,
+                "stock": stock
+            }
+
+            self.cart = {
+                product_id: quantity
+                for product_id, quantity in self.cart.items()
+                if product_id in self.products
+            }
+
+        # Create product buttons
         self.product_buttons.clear()
 
-        for product, price in self.product_prices.items():
+        for product_id, product in self.products.items():
 
             product_btn = ctk.CTkButton(
                 self.product_frame,
-                text=f"{product} - ${price:.2f}",
+                text=f"{product['name']} - ${product['price']:.2f}",
                 width=180,
                 height=65,
-                command=lambda p=product: self.add_to_cart(p)
+                command=lambda pid=product_id: self.add_to_cart(pid)
             )
 
             self.product_buttons.append(product_btn)
 
         self.arrange_product_buttons()
+        self.update_cart()
 
 
 
 
-    def add_to_cart(self, product):
+    def add_to_cart(self, product_id):
 
-        if product in self.cart:
-            self.cart[product] += 1
-        else:
-            self.cart[product] = 1
+        current_quantity = self.cart.get(product_id, 0)
+        available_stock = self.products[product_id]["stock"]
+
+        if current_quantity >= available_stock:
+            messagebox.showwarning(
+                "Insufficient Stock",
+                "Not enough stock available!"   
+            )
+            return
+
+        self.cart[product_id] = current_quantity + 1
 
         self.update_cart()
 
@@ -260,7 +279,9 @@ class POSPage(ctk.CTkFrame):
             widget.destroy()
 
         # Display current cart items
-        for product, quantity in self.cart.items():
+        for product_id, quantity in self.cart.items():
+
+            product_name = self.products[product_id]["name"]
 
             item_frame = ctk.CTkFrame(self.cart_items_frame)
             item_frame.pack(fill="x", padx=5, pady=5)
@@ -271,7 +292,7 @@ class POSPage(ctk.CTkFrame):
 
             item = ctk.CTkLabel(
                 item_frame,
-                text=f"{product}  x{quantity}",
+                text=f"{product_name}  x{quantity}",
                 anchor="w",
                 justify="left",
                 wraplength=130
@@ -282,7 +303,7 @@ class POSPage(ctk.CTkFrame):
                 item_frame,
                 text="-",
                 width=30,
-                command=lambda p=product: self.remove_from_cart(p)
+                command=lambda pid=product_id: self.remove_from_cart(pid)
             )
             remove_btn.grid(row=0, column=1, padx=3, pady=5)
 
@@ -290,7 +311,7 @@ class POSPage(ctk.CTkFrame):
                 item_frame,
                 text="+",
                 width=30,
-                command=lambda p=product: self.add_to_cart(p)
+                command=lambda pid=product_id: self.add_to_cart(pid)
             )
             add_btn.grid(row=0, column=2, padx=3, pady=5)
 
@@ -305,7 +326,7 @@ class POSPage(ctk.CTkFrame):
 
         self.cart_total.configure(
             text=f"Total: ${self.calculate_total():.2f}"
-        )            
+        )
 
 
 
@@ -314,8 +335,11 @@ class POSPage(ctk.CTkFrame):
 
         total = 0
 
-        for product, quantity in self.cart.items():
-            total += quantity * self.product_prices[product]
+        for product_id, quantity in self.cart.items():
+
+            price = self.products[product_id]["price"]
+
+            total += quantity * price
 
         return total
 
