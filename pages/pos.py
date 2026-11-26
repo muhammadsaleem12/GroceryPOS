@@ -1,13 +1,14 @@
 import customtkinter as ctk
 from tkinter import messagebox
 
-from database import get_products
+from database import get_products, create_sale
 
 
 class POSPage(ctk.CTkFrame):
 
-    def __init__(self, master):
+    def __init__(self, master, on_sale_completed=None):
         super().__init__(master)
+        self.on_sale_completed = on_sale_completed
         self.cart = {}
         self.products = {}
         self.product_buttons = []
@@ -391,7 +392,29 @@ class POSPage(ctk.CTkFrame):
             print("Invalid checkout total!")
             return
 
+        discount = self.calculate_discount()
+
+        try:
+            sale_id = create_sale(
+                self.cart,
+                self.products,
+                total,
+                discount
+            )
+
+        except Exception as e:
+            messagebox.showerror("Checkout Failed", str(e))
+            return
+
         messagebox.showinfo(
             "Checkout Successful",
-            f"Total Amount: ${total:.2f}\n\nThank you for your purchase!"
+            f"Sale ID: {sale_id}\n"
+            f"Total Amount: ${total:.2f}\n\n"
+            "Thank you for your purchase!"
         )
+
+        self.cart.clear()
+        self.load_products()
+
+        if self.on_sale_completed:
+            self.on_sale_completed()

@@ -27,12 +27,13 @@ main_content.pack(side="right", fill="both", expand=True)
 
 dashboard_page = DashboardPage(main_content)
 pos_page = POSPage(main_content)
+
 inventory_page = InventoryPage(
     main_content,
     on_products_changed=pos_page.load_products
 )
 
-
+pos_page.on_sale_completed = inventory_page.load_inventory
 
 #---TOUCHPAD SCROLLING WORKAROUND---
 

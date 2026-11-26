@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from tkinter import messagebox
 
-from database import get_products, add_product, delete_product
+from database import get_products, add_product, delete_product, update_product  
 
 class InventoryPage(ctk.CTkFrame):
 
@@ -217,6 +217,18 @@ class InventoryPage(ctk.CTkFrame):
                 font=ctk.CTkFont(size=13)
             )
 
+            edit_btn = ctk.CTkButton(
+                details_frame,
+                text="Edit",
+                width=70,
+                height=28,
+                command=lambda pid=product_id, pname=name, pprice=price, pstock=stock:
+                    self.edit_product(pid, pname, pprice, pstock)
+            )
+            edit_btn.pack(side="right", padx=5)
+
+
+
             delete_btn = ctk.CTkButton(
                 details_frame,
                 text="Delete",
@@ -228,6 +240,73 @@ class InventoryPage(ctk.CTkFrame):
             )
             delete_btn.pack(side="right", padx=5)
             stock_label.pack(side="right")
+
+
+    def edit_product(self, product_id, name, price, stock):
+        edit_window  = ctk.CTkToplevel(self)
+        edit_window.transient(self.winfo_toplevel())
+        edit_window.grab_set()
+        edit_window.title("Edit Product")
+        edit_window.geometry("350x350")
+
+        name_entry = ctk.CTkEntry(edit_window, placeholder_text="Product Name")
+        name_entry.pack(pady=10, padx=20, fill="x")
+        name_entry.insert(0, name)
+
+        price_entry = ctk.CTkEntry(edit_window, placeholder_text="Product Price")
+        price_entry.pack(pady=10, padx=20, fill="x")
+        price_entry.insert(0, str(price))
+
+        stock_entry = ctk.CTkEntry(edit_window, placeholder_text="Product Stock")
+        stock_entry.pack(pady=10, padx=20, fill="x")
+        stock_entry.insert(0, str(stock))
+
+        save_btn = ctk.CTkButton(
+            edit_window,
+            text="Save Changes",
+            command=lambda: self.save_edited_product(
+                product_id,
+                name_entry.get(),
+                price_entry.get(),
+                stock_entry.get(),
+                edit_window
+            )
+        )
+        save_btn.pack(pady=20)
+
+
+    def save_edited_product(self, product_id, name, price, stock, edit_window):
+        name = name.strip()
+
+        if not name:
+            messagebox.showerror("Invalid Name", "Product name cannot be empty!")
+            return
+
+        try:
+            price = float(price)
+            stock = int(stock)
+
+            if price <= 0 or stock < 0:
+                raise ValueError
+
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Enter a valid price and stock quantity!")
+            return
+
+        update_product(product_id, name, price, stock)
+
+
+        if self.on_products_changed:
+            self.on_products_changed()
+
+        self.load_inventory()
+        edit_window.destroy()
+
+        messagebox.showinfo("Success", "Product updated successfully!")
+
+
+        
+
 
 
 
