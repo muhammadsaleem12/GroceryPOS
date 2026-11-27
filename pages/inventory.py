@@ -220,19 +220,29 @@ class InventoryPage(ctk.CTkFrame):
             edit_btn = ctk.CTkButton(
                 details_frame,
                 text="Edit",
-                width=70,
+                width=50,
                 height=28,
                 command=lambda pid=product_id, pname=name, pprice=price, pstock=stock:
                     self.edit_product(pid, pname, pprice, pstock)
             )
             edit_btn.pack(side="right", padx=5)
 
+            restock_btn = ctk.CTkButton(
+                details_frame,
+                text="Restock",
+                width=50,
+                height=28,
+                command=lambda pid=product_id, pname=name:
+                    self.restock_product(pid, pname)
+            )
+            restock_btn.pack(side="right", padx=5)
+
 
 
             delete_btn = ctk.CTkButton(
                 details_frame,
                 text="Delete",
-                width=70,
+                width=50,
                 height=28,
                 fg_color="#D9534F",
                 hover_color="#B52B27",
@@ -244,10 +254,11 @@ class InventoryPage(ctk.CTkFrame):
 
     def edit_product(self, product_id, name, price, stock):
         edit_window  = ctk.CTkToplevel(self)
-        edit_window.transient(self.winfo_toplevel())
-        edit_window.grab_set()
         edit_window.title("Edit Product")
         edit_window.geometry("350x350")
+        
+        edit_window.transient(self.winfo_toplevel())
+        edit_window.grab_set()
 
         name_entry = ctk.CTkEntry(edit_window, placeholder_text="Product Name")
         name_entry.pack(pady=10, padx=20, fill="x")
@@ -273,6 +284,75 @@ class InventoryPage(ctk.CTkFrame):
             )
         )
         save_btn.pack(pady=20)
+
+    def restock_product(self, product_id, name):
+        restock_window = ctk.CTkToplevel(self)
+        restock_window.title("Restock Product")
+        restock_window.geometry("350x220")
+
+        restock_window.transient(self.winfo_toplevel())
+        restock_window.grab_set()
+
+        product_label = ctk.CTkLabel(
+            restock_window,
+            text=f"Restocking: {name}",
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        product_label.pack(pady=15)
+
+        quantity_entry = ctk.CTkEntry(
+            restock_window,
+            placeholder_text="Quantity to add",
+            width=250
+        )
+        quantity_entry.pack(pady=10)
+
+        restock_btn = ctk.CTkButton(
+            restock_window,
+            text="Add Stock",
+            command=lambda: self.save_restock(
+                product_id, 
+                quantity_entry.get(),
+                restock_window
+            )
+        )
+        restock_btn.pack(pady=15)
+
+    def save_restock(self, product_id, quantity, restock_window):
+        
+        try:
+            quantity = int(quantity)
+        except ValueError:
+            messagebox.showerror(
+                "Invalid Quantity",
+                "Please enter a valid whole number!"
+            )
+            return
+            
+        if quantity <= 0:
+            messagebox.showerror(
+                "Invalid Quantity",
+                "Quantity must be greater than zero!"
+            )
+            return
+
+        for pid, name, price, stock in get_products():
+            if pid == product_id:
+                new_stock = stock + quantity
+                update_product(product_id, name, price, new_stock)
+
+                if self.on_products_changed:
+                    self.on_products_changed()
+
+                self.load_inventory()
+                restock_window.destroy()
+
+                messagebox.showinfo(
+                    "Restock Successful",
+                    f"Added {quantity} units to {name}!"
+                )
+                break
+
 
 
     def save_edited_product(self, product_id, name, price, stock, edit_window):

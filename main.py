@@ -9,7 +9,7 @@ create_tables()
 app = ctk.CTk()
 
 app.title("GroceryPOS - Management System")
-app.geometry("900x600")
+app.geometry("1000x600")
 
 
 #-----SIDEBAR-----
